@@ -1,0 +1,9 @@
+{
+    "pythonVersion": "3.10",
+    "executionEnvironments": [
+        { "root": "scheduler-api-server" },
+        { "root": "executor" },
+        { "root": "shared" },
+        { "root": "tests" }
+    ]
+}
