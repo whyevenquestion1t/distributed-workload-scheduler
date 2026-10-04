@@ -1,0 +1,121 @@
+x-scheduler-peers: &scheduler-peers
+  PEERS: "scheduler-1@http://scheduler-1:5001,scheduler-2@http://scheduler-2:5001,scheduler-3@http://scheduler-3:5001"
+
+x-scheduler-watch: &scheduler-watch
+  develop:
+    watch:
+      - action: sync
+        path: scheduler-api-server/scheduler_server.py
+        target: scheduler-api-server/scheduler_server.py
+      - action: sync
+        path: scheduler-api-server/bin_packing.py
+        target: scheduler-api-server/bin_packing.py
+      - action: sync
+        path: scheduler-api-server/state_machine.py
+        target: scheduler-api-server/state_machine.py
+      - action: sync
+        path: scheduler-api-server/raft
+        target: scheduler-api-server/raft
+      - action: sync
+        path: shared/models.py
+        target: shared/models.py
+
+services:
+  scheduler-1:
+    <<: *scheduler-watch
+    hostname: scheduler-1
+    build:
+      context: ./
+      dockerfile: scheduler-api-server/Dockerfile
+    restart: always
+    environment:
+      <<: *scheduler-peers
+      NODE_ID: scheduler-1
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "5001:5001"
+    volumes:
+      - raft-data-1:/scheduler-api-server/raft-data
+
+  scheduler-2:
+    <<: *scheduler-watch
+    hostname: scheduler-2
+    build:
+      context: ./
+      dockerfile: scheduler-api-server/Dockerfile
+    restart: always
+    environment:
+      <<: *scheduler-peers
+      NODE_ID: scheduler-2
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "5002:5001"
+    volumes:
+      - raft-data-2:/scheduler-api-server/raft-data
+
+  scheduler-3:
+    <<: *scheduler-watch
+    hostname: scheduler-3
+    build:
+      context: ./
+      dockerfile: scheduler-api-server/Dockerfile
+    restart: always
+    environment:
+      <<: *scheduler-peers
+      NODE_ID: scheduler-3
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "5003:5001"
+    volumes:
+      - raft-data-3:/scheduler-api-server/raft-data
+
+  cpu-executor:
+    develop:
+      watch:
+        - action: sync
+          path: executor/executor.py
+          target: executor/executor.py
+        - action: sync
+          path: shared/models.py
+          target: shared/models.py
+    deploy:
+      replicas: 4
+    build:
+      context: ./
+      dockerfile: executor/Dockerfile
+    restart: always
+    environment:
+      SCHEDULER_URLS: "http://scheduler-1:5001,http://scheduler-2:5001,http://scheduler-3:5001"
+      PYTHONUNBUFFERED: "1"
+      GPU_NODE: "false"
+    depends_on:
+      - scheduler-1
+      - scheduler-2
+      - scheduler-3
+
+  gpu-executor:
+    develop:
+      watch:
+        - action: sync
+          path: executor/executor.py
+          target: executor/executor.py
+        - action: sync
+          path: shared/models.py
+          target: shared/models.py
+    build:
+      context: ./
+      dockerfile: executor/Dockerfile
+    restart: always
+    environment:
+      SCHEDULER_URLS: "http://scheduler-1:5001,http://scheduler-2:5001,http://scheduler-3:5001"
+      PYTHONUNBUFFERED: "1"
+      GPU_NODE: "true"
+    depends_on:
+      - scheduler-1
+      - scheduler-2
+      - scheduler-3
+
+volumes:
+  raft-data-1:
+  raft-data-2:
+  raft-data-3:
